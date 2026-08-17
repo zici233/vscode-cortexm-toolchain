@@ -1,6 +1,6 @@
 ---
 name: "vscode-cortexm-toolchain"
-description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolchain (arm-none-eabi-gcc/clang/cmake/ninja/openocd), adapts to target chip and debugger, generates .vscode JSON + Makefile/CMake for one-click build/debug/flash. Invoke when setting up VSCode to build/debug/flash an embedded Cortex-M project."
+description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolchain (arm-none-eabi-gcc/clang/cmake/ninja/openocd), adapts to target chip and debugger, generates .vscode JSON + Makefile/CMake and task- npm scripts for status-bar configure/build/flash buttons. Invoke when setting up VSCode to build/debug/flash an embedded Cortex-M project."
 ---
 
 # VSCode Cortex-M 工具链配置
@@ -65,6 +65,7 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
 - 确定或生成链接脚本 `*.ld`（内存布局）
 - 确定启动文件 `startup_*.s` 与系统文件 `system_*.c`
 - 确定 OpenOCD 的 `interface`（调试器）与 `target`（芯片）配置
+- 若工程使用自有 OpenOCD cfg，按 [chip-adaptation.md](references/chip-adaptation.md) 使用当前的 `hla layout` / `hla vid_pid` / `transport select swd` 语法；不修改 OpenOCD 安装目录的官方 cfg
 - 确定 SVD 文件（调试时查看寄存器，可选）
 - 若用户已有工程，**优先复用**其 startup / ld，不要重复造。
 
@@ -82,16 +83,19 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
 | `Makefile` 或 `CMakeLists.txt` | 构建定义（编译、链接、生成 elf/bin/hex） |
 | `CMakePresets.json` | CMake 构建预设（configure/build preset，配合 `cmake --preset`） |
 | `.vscode/tasks.json` | 编译任务 + 烧录任务（任务入口方案 A） |
-| `package.json` | scripts 定义三个任务按钮 `task-configure` / `task-build` / `task-flash`（任务入口方案 B） |
+| `package.json` | scripts 定义三个状态栏任务按钮 `task-configure-debug` / `task-build-debug` / `task-flash-debug`（任务入口方案 B） |
+| `build-and-flash.ps1` | PowerShell 5.1 兼容的构建后烧录脚本，供 `task-flash-debug` 调用 |
 | `.vscode/launch.json` | 调试配置（Cortex-Debug + OpenOCD） |
 | `.vscode/c_cpp_properties.json` | IntelliSense（includePath / defines / compilerPath） |
 | `.vscode/settings.json` | Cortex-Debug 工具链定位（gdb / openocd 路径） |
 | `linker/*.ld` | 链接脚本（用户无现成时按模板生成） |
 
-**CMake 方案的任务入口（二选一）**：
+**CMake 方案的任务入口**：
 
-- **方案 A（`.vscode/tasks.json`）**：VSCode 原生任务，直接调用 `cmake -B -G -D` / `cmake --build`，见 [templates/tasks-cmake.json](templates/tasks-cmake.json)。
-- **方案 B（`package.json` scripts）**：用 `scripts` 定义 `task-configure` / `task-build` / `task-flash` 三个命令，配合 `CMakePresets.json` 的 `cmake --preset debug` / `cmake --build --preset debug`，可挂到「底部任务按钮」等一键入口，见 [templates/CMakePresets.json.template](templates/CMakePresets.json.template) 与 [templates/package.json.template](templates/package.json.template)。此方案更规范（构建配置集中到 `CMakePresets.json`，命令语义清晰），推荐在 CMake 方案下优先采用。
+- **状态栏入口（必需，`package.json` scripts）**：在项目根目录创建或更新 `package.json`，并生成 `build-and-flash.ps1`。`scripts` 必须包含 `task-configure-debug`、`task-build-debug`、`task-flash-debug` 三个命令，分别对应配置、构建和烧录。所有以 `task-` 开头的 scripts 会自动呈现在 VS Code 状态栏；因此这三个 script 即为三个状态栏按钮。生成时保留已有的非 `task-` scripts，并只新增或更新本 Skill 管理的三个脚本。`task-flash-debug` 必须调用 `powershell -NoProfile -ExecutionPolicy Bypass -File .\\build-and-flash.ps1`；脚本先执行 `cmake --build --preset debug`，成功后再执行 OpenOCD，避免在 Windows PowerShell 5.1 中使用不兼容的 `&&`。见 [templates/CMakePresets.json.template](templates/CMakePresets.json.template)、[templates/package.json.template](templates/package.json.template) 与 [templates/build-and-flash.ps1.template](templates/build-and-flash.ps1.template)。
+- **VSCode 原生任务（可选，`.vscode/tasks.json`）**：直接调用 `cmake -B -G -D` / `cmake --build`，见 [templates/tasks-cmake.json](templates/tasks-cmake.json)。需要兼容任务面板或未使用状态栏按钮的工程时再生成。
+
+**调试入口**：不要创建 `task-debug-*` script 或状态栏调试按钮。调试仍由 Cortex-Debug 的原生入口启动：在运行和调试视图选择 `Cortex Debug (OpenOCD)`，或直接按 `F5`。
 
 完整的工程目录与文件存放规范见 [references/project-structure.md](references/project-structure.md)。本 Skill 生成 `.vscode/*.json`、构建脚本与 `toolchain.cmake`，编译产物统一进 `build/`；**不移动、不重组用户原有源文件**（源码 / 启动文件 / 外设库），其路径以用户实际工程为准，仅在构建脚本中引用；编译调试相关配置文件发现错误或缺项时可修改 / 补齐。
 
@@ -109,9 +113,10 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
 给出验证命令并引导执行：
 
 - 编译（CMake + Presets，推荐）：`cmake --preset debug` 生成配置，`cmake --build --preset debug` 编译
+- 状态栏按钮：确认 `package.json` 的三个 `task-*-debug` scripts 分别显示为配置、构建和烧录按钮，并依次执行配置、构建、烧录
 - 编译（CMake 直连）：`cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake && cmake --build build`
 - 编译（Makefile 回退）：`make -j`
-- 烧录：运行 tasks.json 的 Flash 任务，或 `npm run task-flash`，或
+- 烧录：点击状态栏的烧录按钮（`npm run task-flash-debug`），或直接运行 `.\build-and-flash.ps1`，或运行 tasks.json 的 Flash 任务，或
   `openocd -f <interface> -f <target> -c "program build/firmware.elf verify reset exit"`
 - 调试：VSCode 按 F5 启动 Cortex-Debug
 
