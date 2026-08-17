@@ -1,0 +1,10 @@
+// ============================================================
+//  VSCode settings.json 模板（Cortex-Debug 工具链定位）
+//  占位符需替换为实际值：
+//    __ARM_GCC_BIN__ -> arm-none-eabi bin 目录（含 arm-none-eabi-gdb.exe）
+//    __OPENOCD_BIN__ -> openocd.exe 完整路径
+// ============================================================
+{
+  "cortex-debug.armToolchainPath": "__ARM_GCC_BIN__",
+  "cortex-debug.openocdPath": "__OPENOCD_BIN__"
+}

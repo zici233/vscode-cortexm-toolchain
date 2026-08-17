@@ -1,0 +1,23 @@
+// ============================================================
+//  VSCode IntelliSense 配置模板
+//  占位符需替换为实际值（注意 defines / includePath 为 JSON 数组）：
+//    __ARM_GCC__     -> arm-none-eabi-gcc.exe 绝对路径
+//    __DEFINES__     -> 宏定义数组，如 ["STM32F103xB", "USE_HAL_DRIVER"]
+//    __INCLUDES__    -> 头文件路径数组，如 ["Inc", "Drivers/CMSIS/Include"]
+//    __CPU_FLAGS__   -> 芯片编译参数，如 "-mcpu=cortex-m4 -mthumb"
+// ============================================================
+{
+  "configurations": [
+    {
+      "name": "Cortex-M",
+      "compilerPath": "__ARM_GCC__",
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "gcc-arm",
+      "defines": ["__DEFINES__"],
+      "includePath": ["__INCLUDES__"],
+      "compilerArgs": ["__CPU_FLAGS__"]
+    }
+  ],
+  "version": 4
+}

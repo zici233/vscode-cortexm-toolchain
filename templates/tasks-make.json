@@ -1,0 +1,52 @@
+// ============================================================
+//  VSCode 任务模板（Makefile 版）
+//  占位符需替换为实际值：
+//    __MAKE__           -> make.exe 的绝对路径（或 mingw32-make.exe）
+//    __ARM_GCC_BIN__    -> arm-none-eabi bin 目录绝对路径
+//    __OPENOCD__        -> openocd.exe 绝对路径
+//    __OPENOCD_SCRIPTS__-> openocd 的 scripts 目录绝对路径
+//    __INTERFACE_CFG__  -> interface 配置，如 interface/stlink.cfg
+//    __TARGET_CFG__     -> target 配置，如 target/stm32f1x.cfg
+//    __FIRMWARE__       -> 烧录固件路径，如 build/firmware.elf
+// ============================================================
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build (make)",
+      "type": "shell",
+      "command": "__MAKE__",
+      "args": ["-j"],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PATH": "__ARM_GCC_BIN__;${env:PATH}"
+        }
+      },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "clean (make)",
+      "type": "shell",
+      "command": "__MAKE__",
+      "args": ["clean"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "flash (openocd)",
+      "type": "shell",
+      "command": "__OPENOCD__",
+      "args": [
+        "-s", "__OPENOCD_SCRIPTS__",
+        "-f", "__INTERFACE_CFG__",
+        "-f", "__TARGET_CFG__",
+        "-c", "program __FIRMWARE__ verify reset exit"
+      ],
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["build (make)"],
+      "problemMatcher": []
+    }
+  ]
+}

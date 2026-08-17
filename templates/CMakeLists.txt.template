@@ -1,0 +1,56 @@
+# ============================================================
+#  ARM Cortex-M 通用 CMakeLists.txt 模板
+#  配合 toolchain.cmake 使用（交叉编译工具链在 toolchain 文件中定义）
+#  占位符需替换为实际值：
+#    __PROJECT__   -> 工程名，如 firmware
+#    __TARGET__    -> 输出固件名，如 firmware
+#    __SRCS__      -> 源文件列表（空格分隔），如 src/main.c startup.s
+#    __INCS__      -> 头文件目录列表，如 "Inc" "Drivers/CMSIS/Include"
+#    __DEFS__      -> 宏定义，如 -DSTM32F103xB -DUSE_HAL_DRIVER
+#    __CPU_FLAGS__ -> 芯片编译参数，如 -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
+#    __LDSCRIPT__  -> 链接脚本路径，如 STM32F103C8Tx_FLASH.ld
+# ============================================================
+
+cmake_minimum_required(VERSION 3.20)
+
+project(__PROJECT__ C ASM)
+
+set(TARGET __TARGET__)
+
+# ---- 源文件 ----
+set(SRCS
+    __SRCS__
+)
+
+# ---- 头文件路径 ----
+include_directories(__INCS__)
+
+# ---- 宏定义 ----
+add_definitions(__DEFS__)
+
+add_executable(${TARGET} ${SRCS})
+
+# ---- 编译选项（芯片参数 + 通用优化）----
+target_compile_options(${TARGET} PRIVATE
+    __CPU_FLAGS__
+    -Wall -Wextra -O2 -g3
+    -ffunction-sections -fdata-sections
+)
+
+# ---- 链接选项 ----
+set(LINKER_SCRIPT __LDSCRIPT__)
+
+target_link_options(${TARGET} PRIVATE
+    -T${LINKER_SCRIPT}
+    -Wl,--gc-sections
+    -Wl,-Map=${CMAKE_BINARY_DIR}/${TARGET}.map
+    -specs=nano.specs
+    -specs=nosys.specs
+)
+
+# ---- 构建后生成 bin / hex ----
+add_custom_command(TARGET ${TARGET} POST_BUILD
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${TARGET}> ${CMAKE_BINARY_DIR}/${TARGET}.bin
+    COMMAND ${CMAKE_OBJCOPY} -O ihex   $<TARGET_FILE:${TARGET}> ${CMAKE_BINARY_DIR}/${TARGET}.hex
+    COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${TARGET}>
+)

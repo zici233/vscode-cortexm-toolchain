@@ -1,0 +1,29 @@
+// ============================================================
+//  CMake Presets 模板（配合 CMakeLists.txt 使用）
+//  生成时去掉 .template 后缀，并替换占位符：
+//    __NINJA__      -> ninja.exe 绝对路径
+//    __BUILD_TYPE__ -> Debug / Release（默认 Debug）
+//  说明：CMake 3.20+ 支持该文件；如旧版 CMake 解析报错，删除所有 // 注释行即可。
+// ============================================================
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "toolchainFile": "${sourceDir}/toolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "__BUILD_TYPE__",
+        "CMAKE_MAKE_PROGRAM": "__NINJA__"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug"
+    }
+  ]
+}

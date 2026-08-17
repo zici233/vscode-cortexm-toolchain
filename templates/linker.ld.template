@@ -1,0 +1,90 @@
+/* ============================================================
+ *  ARM Cortex-M 通用链接脚本模板（STM32 / GD32 风格）
+ *  占位符需替换为实际值：
+ *    __FLASH_ORIGIN__ -> Flash 起始地址，如 0x08000000
+ *    __FLASH_LENGTH__ -> Flash 大小，如 64K
+ *    __RAM_ORIGIN__   -> RAM 起始地址，如 0x20000000
+ *    __RAM_LENGTH__   -> RAM 大小，如 20K
+ *    __STACK_SIZE__   -> 栈大小，如 0x400
+ *    __HEAP_SIZE__    -> 堆大小，如 0x200
+ * ============================================================ */
+
+ENTRY(Reset_Handler)
+
+MEMORY
+{
+  FLASH (rx)  : ORIGIN = __FLASH_ORIGIN__, LENGTH = __FLASH_LENGTH__
+  RAM   (xrw) : ORIGIN = __RAM_ORIGIN__,  LENGTH = __RAM_LENGTH__
+}
+
+/* 栈顶 = RAM 起始 + RAM 大小，startup 文件据此设置 MSP */
+_estack = ORIGIN(RAM) + LENGTH(RAM);
+
+_Min_Heap_Size  = __HEAP_SIZE__;
+_Min_Stack_Size = __STACK_SIZE__;
+
+SECTIONS
+{
+  /* 中断向量表，必须放在 Flash 最前面 */
+  .isr_vector :
+  {
+    . = ALIGN(4);
+    KEEP(*(.isr_vector))
+    . = ALIGN(4);
+  } >FLASH
+
+  .text :
+  {
+    . = ALIGN(4);
+    *(.text)
+    *(.text*)
+    *(.glue_7)
+    *(.glue_7t)
+    *(.eh_frame)
+    KEEP (*(.init))
+    KEEP (*(.fini))
+    . = ALIGN(4);
+    _etext = .;
+  } >FLASH
+
+  .rodata :
+  {
+    . = ALIGN(4);
+    *(.rodata)
+    *(.rodata*)
+    . = ALIGN(4);
+  } >FLASH
+
+  /* 已初始化数据的加载地址（Flash 中） */
+  _sidata = LOADADDR(.data);
+
+  .data :
+  {
+    . = ALIGN(4);
+    _sdata = .;
+    *(.data)
+    *(.data*)
+    . = ALIGN(4);
+    _edata = .;
+  } >RAM AT> FLASH
+
+  .bss :
+  {
+    . = ALIGN(4);
+    _sbss = .;
+    *(.bss)
+    *(.bss*)
+    *(COMMON)
+    . = ALIGN(4);
+    _ebss = .;
+  } >RAM
+
+  /* 堆与栈预留 */
+  ._user_heap_stack :
+  {
+    . = ALIGN(8);
+    . = . + _Min_Heap_Size;
+    . = . + _Min_Stack_Size;
+    . = ALIGN(8);
+  } >RAM
+}

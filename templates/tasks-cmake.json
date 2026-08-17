@@ -1,0 +1,53 @@
+// ============================================================
+//  VSCode 任务模板（CMake 版）
+//  占位符需替换为实际值：
+//    __CMAKE__          -> cmake.exe 绝对路径
+//    __NINJA__          -> ninja.exe 绝对路径
+//    __OPENOCD__        -> openocd.exe 绝对路径
+//    __OPENOCD_SCRIPTS__-> openocd 的 scripts 目录绝对路径
+//    __INTERFACE_CFG__  -> interface 配置，如 interface/stlink.cfg
+//    __TARGET_CFG__     -> target 配置，如 target/stm32f1x.cfg
+//    __FIRMWARE__       -> 烧录固件路径，如 build/firmware.elf
+// ============================================================
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "configure (cmake)",
+      "type": "shell",
+      "command": "__CMAKE__",
+      "args": [
+        "-B", "build",
+        "-G", "Ninja",
+        "-DCMAKE_MAKE_PROGRAM=__NINJA__",
+        "-DCMAKE_TOOLCHAIN_FILE=toolchain.cmake"
+      ],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "build (cmake)",
+      "type": "shell",
+      "command": "__CMAKE__",
+      "args": ["--build", "build"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "build", "isDefault": true },
+      "dependsOn": ["configure (cmake)"],
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "flash (openocd)",
+      "type": "shell",
+      "command": "__OPENOCD__",
+      "args": [
+        "-s", "__OPENOCD_SCRIPTS__",
+        "-f", "__INTERFACE_CFG__",
+        "-f", "__TARGET_CFG__",
+        "-c", "program __FIRMWARE__ verify reset exit"
+      ],
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["build (cmake)"],
+      "problemMatcher": []
+    }
+  ]
+}

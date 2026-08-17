@@ -1,0 +1,17 @@
+// ============================================================
+//  package.json 模板 —— 用 scripts 定义三个「任务按钮」
+//  生成时去掉 .template 后缀，并删除所有 // 注释行（package.json 是严格 JSON，不允许注释）
+//  占位符需替换：
+//    __INTERFACE_CFG__ -> interface 配置，如 interface/cmsis-dap.cfg 或 interface/stlink.cfg
+//    __TARGET_CFG__    -> target 配置，如 target/stm32f4x.cfg 或 target/stm32f1x.cfg
+//    __FIRMWARE__      -> 烧录固件路径，如 build/firmware.elf
+//  若 cmake / openocd 不在 PATH，请把命令名替换为绝对路径（Windows 路径中的 \ 需写成 \\）。
+// ============================================================
+{
+  "private": true,
+  "scripts": {
+    "task-configure": "cmake --preset debug",
+    "task-build": "cmake --build --preset debug",
+    "task-flash": "cmake --build --preset debug && openocd -f __INTERFACE_CFG__ -f __TARGET_CFG__ -c \"program __FIRMWARE__ verify reset exit\""
+  }
+}

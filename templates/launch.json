@@ -1,0 +1,33 @@
+// ============================================================
+//  VSCode 调试配置模板（Cortex-Debug + OpenOCD）
+//  依赖插件：marus25.cortex-debug
+//  占位符需替换为实际值：
+//    __FIRMWARE__        -> 待调试 elf 路径，如 build/firmware.elf
+//    __DEVICE__          -> 芯片型号，如 STM32F103C8
+//    __INTERFACE_CFG__   -> interface 配置，如 interface/stlink.cfg
+//    __TARGET_CFG__      -> target 配置，如 target/stm32f1x.cfg
+//    __OPENOCD_SCRIPTS__ -> openocd 的 scripts 目录绝对路径
+//    __SVD_FILE__        -> SVD 文件绝对路径（可选，删除该行则无外设寄存器视图）
+// ============================================================
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Cortex Debug (OpenOCD)",
+      "cwd": "${workspaceFolder}",
+      "executable": "__FIRMWARE__",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "device": "__DEVICE__",
+      "configFiles": [
+        "__INTERFACE_CFG__",
+        "__TARGET_CFG__"
+      ],
+      "searchDir": ["__OPENOCD_SCRIPTS__"],
+      "svdFile": "__SVD_FILE__",
+      "runToEntryPoint": "main",
+      "showDevDebugOutput": "none"
+    }
+  ]
+}

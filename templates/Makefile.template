@@ -1,0 +1,77 @@
+# ============================================================
+#  ARM Cortex-M 通用 Makefile 模板
+#  占位符需替换为实际值：
+#    __TARGET__      -> 输出固件名，如 firmware
+#    __ARM_GCC_BIN__ -> arm-none-eabi bin 目录绝对路径
+#    __CPU_FLAGS__   -> 芯片编译参数，如 -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16
+#    __LDSCRIPT__    -> 链接脚本路径，如 STM32F103C8Tx_FLASH.ld
+#    __DEFS__        -> 宏定义，如 -DSTM32F103xB -DUSE_HAL_DRIVER
+#    __C_SRCS__      -> C 源文件列表（空格分隔，可含相对路径）
+#    __ASM_SRCS__    -> 汇编源文件列表（空格分隔）
+#    __INC__         -> 头文件目录列表（空格分隔，如 Inc Drivers/CMSIS/Include）
+#  说明：本模板面向"源文件基本在同级/少数子目录"的项目；
+#        若目录结构复杂，建议改用 CMake 或扩展此 Makefile。
+#  Windows 注意：若 mkdir -p / rm -rf 不可用（如 mingw32-make 跑在 cmd 下），
+#        将 mkdir 改为 `if not exist build mkdir build`，clean 改为 `rmdir /S /Q build`。
+# ============================================================
+
+TARGET    = __TARGET__
+BUILD_DIR = build
+
+# ---- 工具链（绝对路径）----
+PREFIX = __ARM_GCC_BIN__/arm-none-eabi-
+CC     = $(PREFIX)gcc
+CXX    = $(PREFIX)g++
+AS     = $(PREFIX)gcc
+LD     = $(PREFIX)gcc
+OBJCOPY= $(PREFIX)objcopy
+SIZE   = $(PREFIX)size
+
+# ---- 芯片 / 工程配置 ----
+CPU_FLAGS = __CPU_FLAGS__
+LDSCRIPT  = __LDSCRIPT__
+DEFS      = __DEFS__
+C_SRCS    = __C_SRCS__
+ASM_SRCS  = __ASM_SRCS__
+INC       = __INC__
+
+# ---- 编译 / 链接参数 ----
+CFLAGS  = $(CPU_FLAGS) $(DEFS) $(addprefix -I,$(INC)) \
+          -Wall -Wextra -O2 -g3 -ffunction-sections -fdata-sections
+LDFLAGS = $(CPU_FLAGS) -T$(LDSCRIPT) \
+          -Wl,--gc-sections -Wl,-Map=$(BUILD_DIR)/$(TARGET).map \
+          -specs=nano.specs -specs=nosys.specs
+
+# ---- 目标文件（用 vpath 处理子目录源文件）----
+OBJ = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SRCS:.c=.o))) \
+      $(addprefix $(BUILD_DIR)/,$(notdir $(ASM_SRCS:.s=.o)))
+
+vpath %.c $(sort $(dir $(C_SRCS)))
+vpath %.s $(sort $(dir $(ASM_SRCS)))
+
+# ---- 构建目标 ----
+all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).bin $(BUILD_DIR)/$(TARGET).hex
+
+$(BUILD_DIR):
+	@mkdir -p $@
+
+$(BUILD_DIR)/%.o: %.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: %.s | $(BUILD_DIR)
+	$(AS) $(CPU_FLAGS) -c $< -o $@
+
+$(BUILD_DIR)/$(TARGET).elf: $(OBJ)
+	$(LD) $(OBJ) $(LDFLAGS) -o $@
+	$(SIZE) $@
+
+$(BUILD_DIR)/$(TARGET).bin: $(BUILD_DIR)/$(TARGET).elf
+	$(OBJCOPY) -O binary $< $@
+
+$(BUILD_DIR)/$(TARGET).hex: $(BUILD_DIR)/$(TARGET).elf
+	$(OBJCOPY) -O ihex $< $@
+
+clean:
+	rm -rf $(BUILD_DIR)
+
+.PHONY: all clean
