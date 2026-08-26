@@ -1,11 +1,13 @@
 # PowerShell 5.1-compatible build and flash helper.
 # Replace the placeholders before copying this file to build-and-flash.ps1.
+# __CMAKE__   -> 已验证可用的 cmake.exe 绝对路径
+# __OPENOCD__ -> 已验证可用的 openocd.exe 绝对路径
 $ErrorActionPreference = 'Stop'
 
-cmake --build --preset debug
+& "__CMAKE__" --build --preset debug
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-openocd -f "__INTERFACE_CFG__" -f "__TARGET_CFG__" -c "program __FIRMWARE__ verify reset exit"
+& "__OPENOCD__" -f "__INTERFACE_CFG__" -f "__TARGET_CFG__" -c "program __FIRMWARE__ verify reset exit"
 exit $LASTEXITCODE

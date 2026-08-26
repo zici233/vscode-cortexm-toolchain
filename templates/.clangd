@@ -1,0 +1,15 @@
+# ============================================================
+#  clangd 工程配置文件（YAML 格式）
+#  作用：告诉 clangd 编译数据库 compile_commands.json 所在目录
+#  占位符：
+#    __COMPILE_DB_DIR__ -> compile_commands.json 所在目录（相对于工程根）
+#      - CMake 方案：优先复用现有 CMakePresets.json 的 binaryDir，
+#        或现有 CMakeLists.txt 指定的 BINARY_DIR；
+#        若均未找到，则沿用构建产物目录规范默认值 build
+#      - Makefile 回退方案：先在工程下搜索 compile_commands.json
+#        所在目录，找不到则不生成本文件（clangd 无编译数据库不可用）
+#  clangd 读取该目录下的 compile_commands.json 后，即可使用与实际
+#  构建完全一致的头文件路径、宏定义、编译参数（-mcpu 等）进行补全与诊断。
+# ============================================================
+CompileFlags:
+  CompilationDatabase: __COMPILE_DB_DIR__

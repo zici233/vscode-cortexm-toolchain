@@ -3,17 +3,18 @@
 //  生成时去掉 .template 后缀，并删除所有 // 注释行（package.json 是严格 JSON，不允许注释）
 //  占位符需替换：
 //    __PROJECT_NAME__  -> 小写 npm 包名，如 example2-4-cortexm-tasks
+//    __CMAKE__        -> 已验证可用的 cmake.exe 绝对路径
 //    __INTERFACE_CFG__ -> interface 配置，如 interface/cmsis-dap.cfg 或 interface/stlink.cfg
 //    __TARGET_CFG__    -> target 配置，如 target/stm32f4x.cfg 或 target/stm32f1x.cfg
 //    __FIRMWARE__      -> 烧录固件路径，如 build/firmware.elf
-//  若 cmake / openocd 不在 PATH，请把命令名替换为绝对路径（Windows 路径中的 \ 需写成 \\）。
+//  仅在 npm 已验证可用时生成本文件；脚本中的工具命令优先使用绝对路径。
 // ============================================================
 {
   "name": "__PROJECT_NAME__",
   "private": true,
   "scripts": {
-    "task-configure-debug": "cmake --preset debug",
-    "task-build-debug": "cmake --build --preset debug",
+    "task-configure-debug": "\"__CMAKE__\" --fresh --preset debug",
+    "task-build-debug": "\"__CMAKE__\" --build --preset debug",
     "task-flash-debug": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\build-and-flash.ps1"
   }
 }

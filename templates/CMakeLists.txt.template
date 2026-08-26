@@ -15,6 +15,9 @@ cmake_minimum_required(VERSION 3.20)
 
 project(__PROJECT__ C ASM)
 
+# 导出编译数据库，供 VSCode IntelliSense 复用真实编译参数（头文件路径 / 宏 / ARM 参数）
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(TARGET __TARGET__)
 
 # ---- 源文件 ----
@@ -48,9 +51,9 @@ target_link_options(${TARGET} PRIVATE
     -specs=nosys.specs
 )
 
-# ---- 构建后生成 bin / hex ----
+# ---- 构建后处理 ----
+# 默认不在 CMake POST_BUILD 中生成 bin / hex：Windows 中文路径下经 cmd.exe 调用 objcopy 可能异常。
+# 调试 / 烧录主产物统一使用 elf；如需 bin / hex，建议改由 PowerShell 脚本单独转换。
 add_custom_command(TARGET ${TARGET} POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${TARGET}> ${CMAKE_BINARY_DIR}/${TARGET}.bin
-    COMMAND ${CMAKE_OBJCOPY} -O ihex   $<TARGET_FILE:${TARGET}> ${CMAKE_BINARY_DIR}/${TARGET}.hex
     COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${TARGET}>
 )

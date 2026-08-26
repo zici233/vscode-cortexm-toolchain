@@ -5,6 +5,12 @@
 //    __DEFINES__     -> 宏定义数组，如 ["STM32F103xB", "USE_HAL_DRIVER"]
 //    __INCLUDES__    -> 头文件路径数组，如 ["Inc", "Drivers/CMSIS/Include"]
 //    __CPU_FLAGS__   -> 芯片编译参数，如 "-mcpu=cortex-m4 -mthumb"
+//    __COMPILE_COMMANDS__ -> 编译数据库完整路径（动态判断，非写死 build/）：
+//          - CMake 方案：优先读取现有 CMakePresets.json 的 binaryDir
+//            或 CMakeLists.txt 的 BINARY_DIR，拼 compile_commands.json；
+//            读不到则默认 build/compile_commands.json
+//          - Makefile 回退方案：工程下搜索 compile_commands.json；
+//            找不到则清空该字段，改用手工 includePath + defines
 // ============================================================
 {
   "configurations": [
@@ -16,6 +22,7 @@
       "intelliSenseMode": "gcc-arm",
       "defines": ["__DEFINES__"],
       "includePath": ["__INCLUDES__"],
+      "compileCommands": "__COMPILE_COMMANDS__",
       "compilerArgs": ["__CPU_FLAGS__"]
     }
   ],

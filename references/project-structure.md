@@ -21,8 +21,9 @@
 ├── .vscode/                        # ★ 生成：VSCode 配置
 │   ├── tasks.json                  #   编译 / 烧录任务
 │   ├── launch.json                 #   调试配置（Cortex-Debug）
-│   ├── c_cpp_properties.json       #   IntelliSense 配置
-│   └── settings.json               #   Cortex-Debug 工具链定位
+│   ├── c_cpp_properties.json       #   IntelliSense 配置（compileCommands 路径动态判断）
+│   └── settings.json               #   Cortex-Debug 路径 + clangd.path（clangd.exe 绝对路径，探测/复用）
+├── .clangd                         # ★ 生成：clangd 配置（CompilationDatabase 路径动态判断，不写死 build）
 ├── CMakeLists.txt  或  Makefile    # ★ 生成：构建定义
 ├── CMakePresets.json               # ★ 生成：仅 CMake 方案（构建预设）
 ├── toolchain.cmake                 # ★ 生成：仅 CMake 方案
@@ -60,6 +61,7 @@
 | `launch.json` | `.vscode/` | 两者 |
 | `c_cpp_properties.json` | `.vscode/` | 两者 |
 | `settings.json` | `.vscode/` | 两者 |
+| `.clangd` | 根目录 | 动态判断：任何方案只要工程下搜索到 `compile_commands.json` 就生成；Makefile 方案搜不到则不生成。`CompilationDatabase` 值来源于搜索命中或 `CMakePresets.binaryDir` 或 CMake 默认 `build`，绝不写死。 |
 | `linker/<chip>.ld`（用户无现成时生成） | `linker/` | 两者 |
 | `CMakeLists.txt` | 根目录 | CMake |
 | `CMakePresets.json` | 根目录 | CMake |
