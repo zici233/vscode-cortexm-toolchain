@@ -119,6 +119,27 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
 
 **调试入口**：不要创建 `task-debug-*` script 或状态栏调试按钮。调试仍由 Cortex-Debug 的原生入口启动：在运行和调试视图选择 `Cortex Debug (OpenOCD)`，或直接按 `F5`。
 
+**状态栏按钮补充说明（必须告知用户）**：
+
+- 生效前提：`task-*` 这三个脚本想真正显示为「状态栏可点击按钮」，需要用户先在 VS Code 扩展市场安装 **Task Buttons** 扩展，扩展标识为 `spmeesseman.vscode-task-buttons`。未安装时三个脚本仍然可以在终端用 `npm run task-xxx-debug` 手动执行，但不会变成按钮。
+- 安装后刷新窗口（Ctrl+Shift+P → Developer: Reload Window），该扩展会自动扫描 workspace 根的 `package.json` → `scripts`，把以 `task-` 前缀命名的条目顺序渲染为左下角状态栏按钮，按钮文案会去掉前缀显示为「Configure Debug / Build Debug / Flash Debug」（也可在 Task Buttons 设置中自定义外观）。
+- 三个按钮的具体行为（按状态栏从左到右顺序）：
+  1. **Configure Debug**（对应 `task-configure-debug`）
+     - 第 1 步：执行 `refresh-cmake-sources.ps1`，把 Core / Drivers / App / Bsp / Src / src / Middlewares / 根目录下新增/删除的 `.c/.s/.S/.cpp` 同步回写 `CMakeLists.txt` 的 `set(SRCS ...)` 段（其他段落保持不变，保证原有功能不被破坏）。
+     - 第 2 步：执行 `cmake --fresh --preset debug`，按 CMakePresets 重新跑 configure，生成 `build/` 下的构建脚本与 `compile_commands.json`（IntelliSense / clangd 会立刻同步到最新头文件与宏）。
+     - 适合场景：新建了 .c / .h 文件、改了链接脚本或宏、第一次配置、任何需要让 CMake 重新扫描工程的时刻。
+  2. **Build Debug**（对应 `task-build-debug`）
+     - 只跑 `cmake --build --preset debug` 做增量编译，不跑 configure，也不刷新源文件列表。
+     - 适合场景：只改了已有源文件内部的几行代码，想最快得到编译结果（速度比 Configure + Build 快很多）。
+  3. **Flash Debug**（对应 `task-flash-debug`）
+     - 调用 `build-and-flash.ps1`：先跑 `cmake --build --preset debug` 保证固件是最新；构建成功后再用 openocd 的 `program <firmware.elf> verify reset exit` 做校验烧录并复位芯片。
+     - 注意：走 PowerShell 而不是 CMake POST_BUILD，避免 Windows 中文路径 / 空格路径下 `cmd.exe` 解引用失败导致 objcopy / openocd 报错。
+- 若用户反馈「没看到按钮」，按优先级排查：
+  1. 是否安装 `spmeesseman.vscode-task-buttons` 并重启窗口
+  2. 是否 npm 可用（缺失会跳过生成 package.json，状态栏方案整体不启用）
+  3. Task Buttons 设置是否过滤了 `task-` 前缀（默认应启用）
+  4. 当前打开的 workspace 根目录是否是 `package.json` 所在目录（子目录打开不生效）
+
 完整的工程目录与文件存放规范见 [references/project-structure.md](references/project-structure.md)。本 Skill 生成 `.vscode/*.json`、构建脚本与 `toolchain.cmake`，编译产物统一进 `build/`；**不移动、不重组用户原有源文件**（源码 / 启动文件 / 外设库），其路径以用户实际工程为准，仅在构建脚本中引用；编译调试相关配置文件发现错误或缺项时可修改 / 补齐。
 
 模板位于 [templates/](templates/)，生成时替换以下占位符：
@@ -199,10 +220,14 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
 
 - package.json
     作用：生成 task-configure-debug / task-build-debug / task-flash-debug 三个 npm script，
-          VSCode 状态栏会显示为三个按钮；仅当 npm 探测可用时生成。
-    备注：task-configure-debug 两步串行：先执行 refresh-cmake-sources.ps1 自动把新增/删除
-          的 .c/.s 同步写回 CMakeLists.txt 的 set(SRCS) 块，再执行 cmake --fresh --preset debug；
-          task-flash-debug 调用 build-and-flash.ps1（先构建再烧录），命令均用绝对路径。
+          仅当 npm 探测可用时生成；配合 VSCode 扩展 spmeesseman.vscode-task-buttons
+          （市场搜索 Task Buttons）可把三个脚本渲染为 VSCode 左下角状态栏可点击按钮。
+    备注：① 未安装 Task Buttons 时，脚本仍然可在终端手动执行 `npm run task-xxx-debug`，
+             只是不会出现状态栏按钮。② 按钮功能从左到右：
+             Configure Debug = 先刷新 CMake 源列表到 set(SRCS) 再 cmake --fresh --preset debug；
+             Build Debug     = 只做 cmake --build 增量编译（速度最快）；
+             Flash Debug     = 调用 build-and-flash.ps1 先构建再 openocd 烧录复位。
+          task-configure-debug 与 task-flash-debug 的命令均使用已探测的绝对路径。
 
 - refresh-cmake-sources.ps1
     作用：配置按钮前置脚本，扫描 Core / Drivers / App / Bsp / Src / src / Middlewares / 根目录
@@ -228,10 +253,14 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
 [未启用功能]
 - clangd 补全/诊断：未探测到 clangd.exe；如需启用，安装 LLVM for Windows 并重新配置，
   详见「失败分支 - clangd 安装建议」。
-- 状态栏任务按钮 + 自动刷新 CMake 源文件列表：未探测到 npm；如需启用，安装 Node.js 并
-  把 npm 加入 PATH，随后重新运行本 skill，会额外生成 package.json +
-  refresh-cmake-sources.ps1 + build-and-flash.ps1，配置按钮执行时会自动把新增的 .c/.s
-  加入 CMakeLists.txt 的 set(SRCS)。
+- 状态栏任务按钮 + 自动刷新 CMake 源文件列表：
+     - 原因 A：未探测到 npm → 安装 Node.js LTS 并把 npm 加入 PATH 后重跑配置，
+       即可生成 package.json / refresh-cmake-sources.ps1 / build-and-flash.ps1。
+     - 原因 B：已生成 package.json 但未安装 VSCode 扩展 Task Buttons
+       （spmeesseman.vscode-task-buttons）→ 在扩展市场搜索 Task Buttons 安装，
+       再执行 Ctrl+Shift+P → Developer: Reload Window，三个 task- 脚本就会
+       出现在 VSCode 左下角状态栏；未安装也可以在终端 `npm run task-configure-debug`
+       手动执行脚本。
 - 调试寄存器查看：未找到对应 SVD 文件；如需启用，在 launch.json 中补充 "svdFile" 指向
   厂商提供的 <chip>.svd。
 ```

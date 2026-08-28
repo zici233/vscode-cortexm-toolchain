@@ -10,6 +10,34 @@
 //  仅在 npm 已验证可用时生成本文件；脚本中的工具命令优先使用绝对路径。
 //  注意：task-configure-debug 会先调用 refresh-cmake-sources.ps1 自动把新增
 //        的 .c/.s 回写进 CMakeLists.txt 的 set(SRCS) 块（原有 Configure 行为不变）。
+//
+//  ★ 状态栏按钮依赖 VSCode 扩展「Task Buttons」
+//    扩展标识：spmeesseman.vscode-task-buttons
+//    安装方法：扩展市场搜索 Task Buttons（作者 spmeesseman）
+//    生效机制：该扩展会扫描 package.json 中 scripts 的名字前缀为 "task-" 的项，
+//              自动把每个脚本渲染为 VS Code 左下角状态栏的可点击按钮。
+//
+//  ★ 三个按钮的具体作用（显示顺序与 scripts 顺序一致，通常从左到右为 Configure → Build → Flash）：
+//    1) task-configure-debug（按钮文案一般显示为 Configure Debug）
+//          第一步：执行 .\\refresh-cmake-sources.ps1 —— 扫描 Core/Drivers/App/Bsp/src 等
+//                   目录，把新增/删除的 *.c/*.s/*.S/*.cpp 自动同步到 CMakeLists.txt
+//                   的 set(SRCS ...) 段（其他段落不改动，保证原有逻辑不变）。
+//          第二步：执行 cmake --fresh --preset debug —— 重新跑 Configure，
+//                   生成 build/ 下的 Ninja/Makefile 构建脚本与 compile_commands.json，
+//                   让 IntelliSense / clangd / 构建器三者一致。
+//
+//    2) task-build-debug（按钮文案一般显示为 Build Debug）
+//          只执行 cmake --build --preset debug —— 增量编译 build/ 目录下已有的
+//          构建产物，不跑 Configure、也不刷新 CMake 源列表。
+//          适合：已点过 Configure，只是改了几行代码想快速编译看结果（速度最快）。
+//
+//    3) task-flash-debug（按钮文案一般显示为 Flash Debug）
+//          调用 build-and-flash.ps1：
+//            a. 先 cmake --build --preset debug（确保是最新二进制）
+//            b. 构建成功后再调 openocd -f interface -f target -c "program ... verify reset exit"
+//               把固件烧录进芯片并复位运行。
+//          注意：走 PowerShell 而不是 CMake POST_BUILD，避免中文路径下 cmd.exe
+//                解析特殊字符导致 objcopy/openocd 报错。
 // ============================================================
 {
   "name": "__PROJECT_NAME__",
