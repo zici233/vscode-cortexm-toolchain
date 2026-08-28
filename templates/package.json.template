@@ -8,12 +8,14 @@
 //    __TARGET_CFG__    -> target 配置，如 target/stm32f4x.cfg 或 target/stm32f1x.cfg
 //    __FIRMWARE__      -> 烧录固件路径，如 build/firmware.elf
 //  仅在 npm 已验证可用时生成本文件；脚本中的工具命令优先使用绝对路径。
+//  注意：task-configure-debug 会先调用 refresh-cmake-sources.ps1 自动把新增
+//        的 .c/.s 回写进 CMakeLists.txt 的 set(SRCS) 块（原有 Configure 行为不变）。
 // ============================================================
 {
   "name": "__PROJECT_NAME__",
   "private": true,
   "scripts": {
-    "task-configure-debug": "\"__CMAKE__\" --fresh --preset debug",
+    "task-configure-debug": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\refresh-cmake-sources.ps1 ; \"__CMAKE__\" --fresh --preset debug",
     "task-build-debug": "\"__CMAKE__\" --build --preset debug",
     "task-flash-debug": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\build-and-flash.ps1"
   }

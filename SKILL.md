@@ -99,7 +99,8 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
 | `Makefile` 或 `CMakeLists.txt` | 构建定义（编译、链接、生成 elf/bin/hex） |
 | `CMakePresets.json` | CMake 构建预设（configure/build preset，配合 `cmake --preset`） |
 | `.vscode/tasks.json` | 编译任务 + 烧录任务（任务入口方案 A） |
-| `package.json` | scripts 定义三个状态栏任务按钮 `task-configure-debug` / `task-build-debug` / `task-flash-debug`（任务入口方案 B） |
+| `package.json` | scripts 定义三个状态栏任务按钮 `task-configure-debug` / `task-build-debug` / `task-flash-debug`（任务入口方案 B）；`task-configure-debug` 会先刷新源文件列表再执行 `cmake --preset debug` |
+| `refresh-cmake-sources.ps1` | 源文件列表自动同步脚本：每次点配置按钮时扫描 Core/Drivers/App/Bsp/src/ 等目录，把新增/删除的 `.c/.s/.S/.cpp` 同步写回 CMakeLists.txt 的 `set(SRCS ...)` 块（其它所有段落不动，保证原有功能不变）；支持 `.cmake-sources.ignore` 用户忽略清单 |
 | `build-and-flash.ps1` | PowerShell 5.1 兼容的构建后烧录脚本，供 `task-flash-debug` 调用 |
 | `.vscode/launch.json` | 调试配置（Cortex-Debug + OpenOCD） |
 | `.vscode/c_cpp_properties.json` | IntelliSense（includePath / defines / compilerPath / compileCommands） |
@@ -109,7 +110,11 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
 
 **CMake 方案的任务入口**：
 
-- **状态栏入口（可选，需先验证 npm）**：仅当 `npm` 已实际探测可用时，才在项目根目录创建或更新 `package.json`，并生成 `build-and-flash.ps1`。`scripts` 包含 `task-configure-debug`、`task-build-debug`、`task-flash-debug` 三个命令，分别对应配置、构建和烧录；命令应优先使用已验证的 **CMake / OpenOCD 绝对路径**，不要依赖 PATH。若未探测到 `npm`，则**不要生成 `package.json` 状态栏按钮方案**，仅生成 `.vscode/tasks.json`。`task-flash-debug` 必须调用 `powershell -NoProfile -ExecutionPolicy Bypass -File .\\build-and-flash.ps1`；脚本先执行构建，成功后再执行 OpenOCD。见 [templates/CMakePresets.json.template](templates/CMakePresets.json.template)、[templates/package.json.template](templates/package.json.template) 与 [templates/build-and-flash.ps1.template](templates/build-and-flash.ps1.template)。
+- **状态栏入口（可选，需先验证 npm）**：仅当 `npm` 已实际探测可用时，才在项目根目录创建或更新 `package.json`，并生成 `build-and-flash.ps1` 与 `refresh-cmake-sources.ps1`。`scripts` 包含 `task-configure-debug`、`task-build-debug`、`task-flash-debug` 三个命令，分别对应配置、构建和烧录；命令应优先使用已验证的 **CMake / OpenOCD 绝对路径**，不要依赖 PATH。若未探测到 `npm`，则**不要生成 `package.json` 状态栏按钮方案**，仅生成 `.vscode/tasks.json`。
+
+  - `task-configure-debug`：**必须先执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\\refresh-cmake-sources.ps1`**，自动把新增/删除的 `.c/.s/.S/.cpp` 同步写回 `CMakeLists.txt` 的 `set(SRCS ...)` 块，然后再执行 `"__CMAKE__" --fresh --preset debug`。脚本必须仅改写 SRCS 段，不得改动 `add_definitions / target_compile_options / LINKER_SCRIPT / POST_BUILD` 等原有段落。如用户定义了 `.cmake-sources.ignore`（每行一个相对路径，支持 `#` 注释），脚本应跳过这些文件。
+  - `task-build-debug`：保持原命令 `"__CMAKE__" --build --preset debug`，不做源文件刷新，保证用户只构建不重配置时速度最快。
+  - `task-flash-debug`：必须调用 `powershell -NoProfile -ExecutionPolicy Bypass -File .\\build-and-flash.ps1`；脚本先执行构建，成功后再执行 OpenOCD。见 [templates/CMakePresets.json.template](templates/CMakePresets.json.template)、[templates/package.json.template](templates/package.json.template)、[templates/refresh-cmake-sources.ps1](templates/refresh-cmake-sources.ps1) 与 [templates/build-and-flash.ps1.template](templates/build-and-flash.ps1.template)。
 - **VSCode 原生任务（可选，`.vscode/tasks.json`）**：直接调用 `cmake -B -G -D` / `cmake --build`，见 [templates/tasks-cmake.json](templates/tasks-cmake.json)。需要兼容任务面板或未使用状态栏按钮的工程时再生成。
 
 **调试入口**：不要创建 `task-debug-*` script 或状态栏调试按钮。调试仍由 Cortex-Debug 的原生入口启动：在运行和调试视图选择 `Cortex Debug (OpenOCD)`，或直接按 `F5`。
@@ -195,7 +200,18 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
 - package.json
     作用：生成 task-configure-debug / task-build-debug / task-flash-debug 三个 npm script，
           VSCode 状态栏会显示为三个按钮；仅当 npm 探测可用时生成。
-    备注：task-flash-debug 调用 build-and-flash.ps1（先构建再烧录），命令均用绝对路径。
+    备注：task-configure-debug 两步串行：先执行 refresh-cmake-sources.ps1 自动把新增/删除
+          的 .c/.s 同步写回 CMakeLists.txt 的 set(SRCS) 块，再执行 cmake --fresh --preset debug；
+          task-flash-debug 调用 build-and-flash.ps1（先构建再烧录），命令均用绝对路径。
+
+- refresh-cmake-sources.ps1
+    作用：配置按钮前置脚本，扫描 Core / Drivers / App / Bsp / Src / src / Middlewares / 根目录
+          下新增的 *.c/*.s/*.S/*.cpp，排除 build/.vscode/.git 等临时目录，将文件列表以工程
+          根相对路径写回 CMakeLists.txt 的 set(SRCS ...) 段落；其它所有段落（编译选项、
+          链接脚本、宏、POST_BUILD）保持原样不改动。
+    备注：支持根目录下 .cmake-sources.ignore（每行一个相对路径，# 开头为注释）
+          跳过用户不想自动纳入的文件；扫描到 0 个文件时会在 set(SRCS) 里插入
+          TODO 注释提醒用户补 SCAN_DIRS，不会让 CMake 配置报错为空。
 
 - build-and-flash.ps1
     作用：PowerShell 5.1 兼容脚本，先调用 cmake --build --preset debug 构建，构建失败立即退出；
@@ -212,8 +228,10 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
 [未启用功能]
 - clangd 补全/诊断：未探测到 clangd.exe；如需启用，安装 LLVM for Windows 并重新配置，
   详见「失败分支 - clangd 安装建议」。
-- 状态栏任务按钮：未探测到 npm；如需启用，安装 Node.js 并把 npm 加入 PATH，
-  随后重新运行本 skill，会额外生成 package.json + build-and-flash.ps1。
+- 状态栏任务按钮 + 自动刷新 CMake 源文件列表：未探测到 npm；如需启用，安装 Node.js 并
+  把 npm 加入 PATH，随后重新运行本 skill，会额外生成 package.json +
+  refresh-cmake-sources.ps1 + build-and-flash.ps1，配置按钮执行时会自动把新增的 .c/.s
+  加入 CMakeLists.txt 的 set(SRCS)。
 - 调试寄存器查看：未找到对应 SVD 文件；如需启用，在 launch.json 中补充 "svdFile" 指向
   厂商提供的 <chip>.svd。
 ```
@@ -276,7 +294,9 @@ description: "Configures VSCode for ARM Cortex-M dev: auto-detects local toolcha
          clang+llvm-<版本>-x86_64-pc-windows-msvc，把 bin 目录提供给本 skill。
       · 安装后 VSCode 扩展市场安装：llvm-vs-code-extensions.vscode-clangd
 
-3. npm（用于状态栏三个 build/config/flash 按钮）
+3. npm（用于状态栏三个 build/config/flash 按钮 + 配置按钮自动刷新 CMake 源列表）
+    说明：缺失时 package.json / refresh-cmake-sources.ps1 / build-and-flash.ps1 都不会生成，
+          仅靠 .vscode/tasks.json 原生任务驱动构建 / 烧录 / 配置。
     推荐安装：
       · Node.js（自带 npm）：https://nodejs.org/ 下载 LTS 版并勾选 Add to PATH。
 
