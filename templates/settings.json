@@ -1,12 +1,14 @@
 // ============================================================
 //  VSCode settings.json 模板（Cortex-Debug 工具链定位 + clangd 路径）
 //  占位符需替换为实际值：
-//    __ARM_GCC_BIN__ -> arm-none-eabi bin 目录（含 arm-none-eabi-gdb.exe）
+//    __ARM_BINUTILS_BIN__ -> 含 arm-none-eabi-objdump.exe 和 arm-none-eabi-nm.exe 的目录
+//    __ARM_GDB__     -> 已验证兼容的 arm-none-eabi-gdb.exe 绝对路径（可独立于 gcc）
 //    __OPENOCD_BIN__ -> openocd.exe 完整路径
 //    __CLANGD__      -> clangd.exe 完整路径（可选，探测到 clangd 时写入）
 // ============================================================
 {
-  "cortex-debug.armToolchainPath": "__ARM_GCC_BIN__",
+  "cortex-debug.armToolchainPath": "__ARM_BINUTILS_BIN__",
+  "cortex-debug.gdbPath": "__ARM_GDB__",
   "cortex-debug.openocdPath": "__OPENOCD_BIN__",
   "clangd.path": "__CLANGD__"
 }

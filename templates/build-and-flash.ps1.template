@@ -1,13 +1,17 @@
-# PowerShell 5.1-compatible build and flash helper.
-# Replace the placeholders before copying this file to build-and-flash.ps1.
+﻿# PowerShell 5.1-compatible build and flash helper.
+# 生成位置：<project>/Tools/build-and-flash.ps1（与 refresh-cmake-sources.ps1 同目录）。
 # __CMAKE__   -> 已验证可用的 cmake.exe 绝对路径
 # __OPENOCD__ -> 已验证可用的 openocd.exe 绝对路径
 $ErrorActionPreference = 'Stop'
+
+# 以脚本所在 Tools/ 的上一级作为工程根，保证从任意当前目录调用都能定位项目。
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+Set-Location $ProjectRoot
 
 & "__CMAKE__" --build --preset debug
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-& "__OPENOCD__" -f "__INTERFACE_CFG__" -f "__TARGET_CFG__" -c "program __FIRMWARE__ verify reset exit"
+& "__OPENOCD__" -s "__OPENOCD_SCRIPTS__" -f "__INTERFACE_CFG__" -f "__TARGET_CFG__" -c 'program "__FIRMWARE__" verify reset exit'
 exit $LASTEXITCODE

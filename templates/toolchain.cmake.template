@@ -1,20 +1,21 @@
 # ============================================================
 #  ARM Cortex-M 交叉编译工具链文件（CMake 用）
-#  由 tasks.json 中的 -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake 引入
+#  由 CMakePresets.json 的 toolchainFile 引入
 #  占位符需替换为实际值：
-#    __ARM_GCC_BIN__ -> arm-none-eabi bin 目录绝对路径
+#    __ARM_GCC__     -> arm-none-eabi-gcc.exe 绝对路径（使用正斜杠）
+#    __ARM_GXX__     -> 配套 arm-none-eabi-g++.exe 绝对路径（仅 C++ 项目保留该设置）
+#    __ARM_OBJCOPY__ -> 已验证兼容的 arm-none-eabi-objcopy.exe 绝对路径
+#    __ARM_SIZE__    -> 已验证兼容的 arm-none-eabi-size.exe 绝对路径
 # ============================================================
 
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_PROCESSOR arm)
 
-set(TOOLCHAIN_PREFIX __ARM_GCC_BIN__/arm-none-eabi-)
-
-set(CMAKE_C_COMPILER   ${TOOLCHAIN_PREFIX}gcc)
-set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}g++)
-set(CMAKE_ASM_COMPILER ${TOOLCHAIN_PREFIX}gcc)
-set(CMAKE_OBJCOPY      ${TOOLCHAIN_PREFIX}objcopy CACHE FILEPATH "" FORCE)
-set(CMAKE_SIZE         ${TOOLCHAIN_PREFIX}size    CACHE FILEPATH "" FORCE)
+set(CMAKE_C_COMPILER   "__ARM_GCC__")
+set(CMAKE_CXX_COMPILER "__ARM_GXX__") # 纯 C/ASM 项目删除本行
+set(CMAKE_ASM_COMPILER "__ARM_GCC__")
+set(CMAKE_OBJCOPY      "__ARM_OBJCOPY__" CACHE FILEPATH "" FORCE)
+set(CMAKE_SIZE         "__ARM_SIZE__"    CACHE FILEPATH "" FORCE)
 
 # 交叉编译时禁用编译器探测的 try-compile
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)

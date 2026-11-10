@@ -9,8 +9,6 @@
 //          - CMake 方案：优先读取现有 CMakePresets.json 的 binaryDir
 //            或 CMakeLists.txt 的 BINARY_DIR，拼 compile_commands.json；
 //            读不到则默认 build/compile_commands.json
-//          - Makefile 回退方案：工程下搜索 compile_commands.json；
-//            找不到则清空该字段，改用手工 includePath + defines
 // ============================================================
 {
   "configurations": [

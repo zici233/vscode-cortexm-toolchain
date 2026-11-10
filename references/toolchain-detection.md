@@ -1,24 +1,25 @@
 # 工具链探测规则（Windows）
 
-本文件定义如何在 Windows 上定位嵌入式工具链，供 SKILL.md 第 1 步使用。探测结果必须记录**绝对路径**，并回显给用户确认。
+本文件定义如何在 Windows 上定位嵌入式工具链，供 SKILL.md 第 2 步使用。探测结果必须记录**绝对路径**，并回显给用户确认。
 
 ## 探测顺序
 
-对每一项工具，按以下顺序探测，命中即停；**不要一开始递归扫描整盘或整个用户目录**：
+对每一项工具，按以下顺序收集候选；**不要递归扫描整盘、整个用户目录或 Program Files**：
 
-1. **PATH 查找**（最快，优先）
-2. **注册表卸载信息**（定位正式安装的软件）
-3. **常见安装目录**扫描（如 `Toolchain/`、GNU Arm、xPack、OpenOCD、CMake）
-4. **winget 常见安装目录**检查
-5. **有限递归搜索**（仅用于绿色解压型工具，且只在用户给出的目录或少量高命中根目录内进行）
+1. **项目已有配置和用户明确给出的目录**：优先复用已验证的工具路径。
+2. **PATH 查找**：用 `Get-Command` 收集命中的可执行文件。
+3. **注册表卸载信息和已知安装位置**：从安装记录得到具体安装目录，再检查其 `bin`；也检查下文列出的常见路径。
+4. **绿色解压目录**：仅在用户明确给出的工具目录或 `C:\Toolchain`、`$env:USERPROFILE\Toolchain` 等专用目录中搜索，递归深度最多 4 层。不存在的目录跳过；不得以 `C:\`、`D:\`、`$env:USERPROFILE` 为递归根。
+
+同一工具可有多个候选。先验证，再选择；PATH 先命中不代表要忽略项目已配置的版本。搜索不到时列出缺失工具；已有安装则定位实际目录，尚未安装则进入安装引导，不要求用户提供不存在的路径。
 
 ## 版本选择优先级（多份安装时）
 
-当同一工具探测到**多份安装**时，先执行硬性排除，再按「独立 > 稳定 > 新版」依次判断，选出唯一结果：
+当同一工具探测到**多份可用安装**时，按「项目已配置 > 独立 > 稳定 > 新版」依次判断，选出唯一结果：
 
-0. **路径字符（硬性排除，最高优先级）**：安装路径含 `()`、空格、`&`、`%` 等特殊字符的，**一律排除**。Windows 下 Ninja / CMake 经 `cmd.exe` 执行命令，`()` 会被 cmd 当作语法解析，导致构建失败（实测 `E:\Users\GD32EB_v1.5.11_Rel(1)\...\arm-none-eabi-gcc.exe` 报 `is not recognized`）。优先选无特殊字符路径（如 `C:\ST\...\gnu-tools-for-stm32...`、`C:\Users\...\Toolchain\`）。
+0. **项目已配置**：优先复用已有配置中已验证的工具组合，包括来自不同目录但已验证兼容的程序。
 
-1. **独立（优先）**：独立安装的 standalone 工具链，优先于捆绑在 IDE / SDK 内的版本。
+1. **独立**：独立安装的 standalone 工具链，优先于捆绑在 IDE / SDK 内的版本。
    - 独立：`C:\Users\...\Toolchain\`、`GNU Arm Embedded Toolchain`、`Arm GNU Toolchain`、`xpack-*`、winget 安装等。
    - 捆绑（次选）：GD32EB / Keil / IAR / STM32CubeIDE 等 IDE 内置的 `arm-none-eabi-gcc`、`openocd`。这类路径随 IDE 版本变化、升级易失效，仅在无独立版本时使用。
 2. **稳定（次优先）**：release 版优先于 rc / dev / beta / preview / dirty 等非正式版。
@@ -26,11 +27,15 @@
 
 > 判断「独立 vs 捆绑」可看路径特征：出现在 `plugins/`、`com.*.tools.*`、IDE 安装目录下的工具视为捆绑；出现在独立 `Toolchain`、`*xpack*`、官方 `GNU Arm` 目录下的视为独立。
 
+路径中有空格、括号、`&`、`%` 时不要仅凭字符淘汰候选。PowerShell 使用 `& '绝对路径'` 调用，CMake 路径变量加引号，VS Code 任务优先使用 `process` 类型并把参数分项传入；JSON 中的反斜杠和引号必须正确转义。`--version` 仅验证可执行文件，生成后仍需通过实际 configure/build 验证路径引用；失败时定位具体命令和转义问题。
+
+GNU Arm 工具优先选择同一套发行包，允许分别指定 gcc、gdb 和 objcopy 的路径。目录不同不作为淘汰条件；不要为了凑齐同目录程序而放弃项目已有的可用组合。gcc 的 cc1、汇编器、链接器、头文件和运行库应保持安装布局及配套关系，不能仅复制 gcc.exe 拼装编译环境。
+
 ## 各工具探测细节
 
 ### 1. 交叉编译器：arm-none-eabi-gcc
 
-先定位候选 `bin` 目录，再验证该目录是否为**完整可用工具链**。仅目录存在、或仅有 binutils，均不算有效。
+先定位候选 gcc，再验证其目标和编译能力。仅目录存在、或仅有 binutils，均不能作为可用编译器；gcc 所在目录缺少 gdb/objcopy 时，继续分别探测，不排除 gcc。
 
 **PATH 查找：**
 
@@ -38,15 +43,14 @@
 Get-Command arm-none-eabi-gcc -ErrorAction SilentlyContinue
 ```
 
-**可用性验证（必须同时通过）：**
+**编译器验证：**
 
 ```powershell
-& "<bin>\arm-none-eabi-gcc.exe" --version
-& "<bin>\arm-none-eabi-gdb.exe" --version
-& "<bin>\arm-none-eabi-objcopy.exe" --version
+& "<gcc-bin>\arm-none-eabi-gcc.exe" --version
+& "<gcc-bin>\arm-none-eabi-gcc.exe" -dumpmachine
 ```
 
-> 三项任一缺失或执行失败，即判定该候选目录为**不完整工具链**并排除，例如只包含 `objcopy/as/ld` 但缺少 `gcc/gdb` 的目录。
+> 确认目标为 `arm-none-eabi`，随后通过实际项目的 CMake configure/build 验证编译、汇编和链接。C++ 项目还需验证配套 g++，并在 `project()` 中启用 CXX；纯 C/ASM 项目不因缺少 g++ 而失败。
 
 **常见安装目录（依次检查）：**
 
@@ -55,14 +59,14 @@ Get-Command arm-none-eabi-gcc -ErrorAction SilentlyContinue
 - `C:\Program Files (x86)\Arm GNU Toolchain arm-none-eabi\*\bin\arm-none-eabi-gcc.exe`
 - `C:\Program Files\Arm GNU Toolchain arm-none-eabi\*\bin\arm-none-eabi-gcc.exe`
 
-**递归搜索（最后手段）：**
+**绿色解压目录（最后手段）：**
 
 ```powershell
-Get-ChildItem -Path C:\,D:\ -Filter arm-none-eabi-gcc.exe -Recurse -ErrorAction SilentlyContinue |
-  Select-Object -First 5 FullName
+Get-ChildItem -LiteralPath 'C:\Toolchain' -Filter arm-none-eabi-gcc.exe -Recurse -Depth 4 -File -ErrorAction SilentlyContinue |
+  Select-Object -First 5 -ExpandProperty FullName
 ```
 
-> 记录 `bin` 目录，因为 gdb、objcopy、size 等工具也在其中。
+> 记录 gcc 的绝对路径及 `bin` 目录；可优先在同目录寻找其他工具，但必须逐项验证并记录各自路径。
 
 ### 2. 备用编译器：clang（LLVM for Windows）
 
@@ -78,11 +82,11 @@ Get-Command clang -ErrorAction SilentlyContinue
 
 - `C:\Program Files\LLVM\bin\clang.exe`
 
-**递归搜索（重点，绿色解压常放在 D 盘或自定义目录）：**
+**绿色解压目录搜索（用户给出的具体目录）：**
 
 ```powershell
-Get-ChildItem -Path C:\,D:\,E:\ -Filter clang.exe -Recurse -ErrorAction SilentlyContinue |
-  Select-Object -First 5 FullName
+Get-ChildItem -LiteralPath '<LLVM 安装目录>' -Filter clang.exe -Recurse -Depth 4 -File -ErrorAction SilentlyContinue |
+  Select-Object -First 5 -ExpandProperty FullName
 ```
 
 > 使用 clang 交叉编译 Cortex-M 时，通常还需 GNU 工具链提供 `arm-none-eabi` 的 binutils/link（或用 lld）。优先推荐 arm-none-eabi-gcc 作为主力编译器，clang 作为备选。
@@ -101,6 +105,8 @@ Get-ChildItem -Path C:\,D:\,E:\ -Filter clang.exe -Recurse -ErrorAction Silently
 
 ### 3. cmake
 
+验证 `--version`，要求 3.24 或更新稳定版，以支持模板中的 `--fresh`。更旧版本按不兼容处理并引导补装；不能只删除注释来解决版本不兼容。
+
 **PATH 查找：**
 
 ```powershell
@@ -112,31 +118,20 @@ Get-Command cmake -ErrorAction SilentlyContinue
 - `C:\Program Files\CMake\bin\cmake.exe`
 - `C:\Program Files (x86)\CMake\bin\cmake.exe`
 
-**递归搜索（绿色解压版，如 `cmake-*-windows-x86_64\bin\cmake.exe`）：**
+**绿色解压目录搜索（如 `C:\Toolchain\cmake-*-windows-x86_64\bin\cmake.exe`）：**
 
 ```powershell
-Get-ChildItem -Path C:\,D:\,E:\ -Filter cmake.exe -Recurse -ErrorAction SilentlyContinue |
-  Select-Object -First 5 FullName
+Get-ChildItem -LiteralPath 'C:\Toolchain' -Filter cmake.exe -Recurse -Depth 4 -File -ErrorAction SilentlyContinue |
+  Select-Object -First 5 -ExpandProperty FullName
 ```
 
 ### 4. ninja
 
 - 常与 CMake / LLVM 打包，或单独解压（`ninja-win` 中即 `ninja.exe`）。
 - **PATH 查找**：`Get-Command ninja -ErrorAction SilentlyContinue`
-- **递归搜索**：`Get-ChildItem -Path C:\,D:\,E:\ -Filter ninja.exe -Recurse ...`
+- **绿色解压目录搜索**：只在用户给出的具体目录或 `C:\Toolchain` 等专用工具目录中查找 `ninja.exe`。
 
-### 5. make
-
-Windows 上可能是 GNU Make（`make.exe`）或 MinGW 的 `mingw32-make.exe`。
-
-```powershell
-Get-Command make -ErrorAction SilentlyContinue
-Get-Command mingw32-make -ErrorAction SilentlyContinue
-```
-
-> 优先用 `make.exe`（GNU Make）。若只有 `mingw32-make.exe`，tasks.json 中命令需相应替换。
-
-### 6. openocd
+### 5. openocd
 
 **PATH 查找：**
 
@@ -150,20 +145,40 @@ Get-Command openocd -ErrorAction SilentlyContinue
 - `C:\Program Files (x86)\OpenOCD\*\bin\openocd.exe`
 - `C:\openocd\*\bin\openocd.exe`
 
-**递归搜索：**
+**绿色解压目录搜索：**
 
 ```powershell
-Get-ChildItem -Path C:\,D:\,E:\ -Filter openocd.exe -Recurse -ErrorAction SilentlyContinue |
-  Select-Object -First 5 FullName
+Get-ChildItem -LiteralPath 'C:\Toolchain' -Filter openocd.exe -Recurse -Depth 4 -File -ErrorAction SilentlyContinue |
+  Select-Object -First 5 -ExpandProperty FullName
 ```
 
 > 记下 `bin` 同级或上级的 `scripts/` 目录（含 `interface/`、`target/` 配置），调试 / 烧录会用到。
 
-### 7. arm-none-eabi-gdb
+### 6. arm-none-eabi-gdb
 
-一般与 arm-none-eabi-gcc 同目录（`bin\arm-none-eabi-gdb.exe`）。Cortex-Debug 默认用 `arm-none-eabi-gdb`。
+优先查找项目已配置的 gdb，其次 gcc 同目录、PATH 和已确认安装目录。gdb 可以独立安装，不要求与 gcc 同目录或版本号相同。
 
-> 对 GNU Arm 工具链，`gcc/gdb/objcopy` 必须视为**同一候选目录的成套校验项**；不要分别从不同目录拼装。
+验证 `--version` 后，用实际固件检查架构和调试信息读取能力（`<elf>` 应为含 `-g` 调试信息的文件）：
+
+```powershell
+& '<gdb绝对路径>' --version
+& '<gdb绝对路径>' --nx --batch '<elf>' -ex 'show architecture' -ex 'info functions' -ex 'info line main'
+```
+
+检查输出及退出码，确认正确识别 ARM 架构并读取项目已知函数的行号；入口不是 main 时替换为实际函数。不能仅凭退出码为 0 判定调试信息兼容。连接硬件时再验证 OpenOCD 会话；无硬件时明确说明尚未验证连接。
+
+### 7. arm-none-eabi-objcopy 及辅助 binutils
+
+分别从项目配置、gcc 同目录、PATH 和已确认安装目录探测 objcopy；size、objdump、nm 按模板实际用途验证。允许其位于独立的 binutils 安装目录。
+
+```powershell
+& '<objcopy绝对路径>' --version
+& '<objcopy绝对路径>' -O binary '<elf>' '<build目录>/compat-check.bin'
+```
+
+使用实际构建的 ELF 验证格式转换，检查退出码和输出文件；测试产物放在实际构建目录。size 应能读取该 ELF；Cortex-Debug 使用的 objdump/nm 也应能读取它。兼容性取决于目标架构和文件/调试格式支持，不以 gcc、gdb、binutils 的版本号必须相同为条件。
+
+生成配置时，`CMAKE_OBJCOPY`、`CMAKE_SIZE` 分别填写对应程序的绝对路径。`cortex-debug.gdbPath` 指定独立的 gdb；`cortex-debug.armToolchainPath` 指向含 `arm-none-eabi-objdump` 和 `arm-none-eabi-nm` 的目录，不要求该目录包含 gcc/gdb。已有 `launch.json` 中的 `gdbPath`、`armToolchainPath` 覆盖项需与所选工具一致。
 
 ## 探测结果输出格式
 
@@ -176,50 +191,19 @@ Get-ChildItem -Path C:\,D:\,E:\ -Filter openocd.exe -Recurse -ErrorAction Silent
 - clangd           : C:\...\bin\clangd.exe               (版本: clangd 22.1)
 - cmake            : C:\...\cmake.exe                     (版本: 4.4.2)
 - ninja            : C:\...\ninja.exe
-- make             : C:\...\mingw32-make.exe
 - openocd          : C:\...\openocd.exe
 - arm-none-eabi-gdb: C:\...\arm-none-eabi-gdb.exe
+- arm-none-eabi-objcopy: C:\...\arm-none-eabi-objcopy.exe
+- arm-none-eabi-size: C:\...\arm-none-eabi-size.exe
+- arm-none-eabi-objdump / nm: C:\...\bin\                  (Cortex-Debug)
 ```
 
 缺失项明确标注，并提示用户安装或提供路径，不要跳过。
 
-## 安装指引（探测失败时使用，与 SKILL.md 失败分支一致）
+每个已选程序均记录版本；分别说明已完成的版本、构建、ELF 转换及调试信息检查，尚未验证的项目不标为通过。
 
-当某工具探测不到时，按下列分类给出安装方案，**禁止只说“请安装 XXX”不说怎么装**。
+CMake（3.24+）和 Ninja 均为必需工具。任一缺失或验证失败时进入安装引导，不生成或调用 Makefile 作为替代方案。
 
-### 必填（缺失会走「失败分支」，不生成配置）
+## 安装引导与恢复
 
-| 工具 | 推荐安装方式 1（最快） | 推荐安装方式 2（官网） | 常见正确安装目录（本 skill 会扫到） |
-|------|--------------------------|-------------------------|--------------------------------------|
-| arm-none-eabi-gcc / gdb / objcopy（三件套齐全） | `winget install Arm.GnuArmEmbeddedToolchain`（若源提供） | Arm GNU Toolchain 官方 → https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads → 选 Windows (mingw-w64-i686) 完整版 | `C:\Toolchain\arm-gnu-toolchain-<ver>-mingw-w64-i686-arm-none-eabi\bin\`<br>`C:\Users\<用户名>\Toolchain\...\bin\`<br>`C:\Program Files\Arm GNU Toolchain arm-none-eabi\<ver>\bin\` |
-| cmake | `winget install Kitware.CMake`（安装器勾选 Add to PATH） | https://cmake.org/download/ → Windows x64 Installer | `C:\Program Files\CMake\bin\`<br>`C:\Toolchain\cmake-<ver>-windows-x86_64\bin\` |
-| ninja | `winget install Ninja-build.Ninja`；或用 `choco install ninja` | 同 cmake 安装器（新版 CMake 常自带 Ninja）；或 https://github.com/ninja-build/ninja/releases 绿色解压 | 与 cmake 同目录；或 `C:\Toolchain\ninja-win\` |
-| make / mingw32-make（Makefile 回退方案必填） | MinGW-w64：`winget install -e --id GnuWin32.Make` 或 `winget install -e --id MSYS2.MSYS2` 后装 mingw-w64-make | https://www.msys2.org/ 安装后 `pacman -S mingw-w64-x86_64-toolchain` | `C:\msys64\mingw64\bin\mingw32-make.exe`<br>`C:\Program Files (x86)\GnuWin32\bin\make.exe`（路径含空格会被排除） |
-| openocd（烧录 + 调试后端） | xPack OpenOCD（推荐，新版且路径可控）：https://github.com/xpack-dev-tools/openocd-xpack/releases | 官方预编译：https://openocd.org/pages/getting-openocd.html | `C:\Toolchain\xpack-openocd-<ver>\bin\openocd.exe`<br>`C:\openocd\<ver>\bin\openocd.exe` |
-
-> 必填路径硬性约束：安装路径**禁止含空格、`()`、`&`、`%`**，否则 Ninja / CMake 经 cmd.exe 执行时会被当作语法解析，导致构建失败（本 skill 在多版本筛选阶段会自动排除含特殊字符的候选）。
-
-### 可选（缺失不阻断，但体验降级）
-
-| 工具 | 推荐安装方式 | 说明 |
-|------|---------------|------|
-| clangd（含 clang/LLVM 全套，可选） | LLVM for Windows 正式版：https://github.com/llvm/llvm-project/releases → 选 `LLVM-<ver>-win64.exe`（勾选 Add to PATH）或绿色解压 `clang+llvm-<ver>-x86_64-pc-windows-msvc` | 用于 clangd 插件补全/跳转/诊断；安装后 VSCode 扩展市场再装 `llvm-vs-code-extensions.vscode-clangd` |
-| npm / Node.js（状态栏三个按钮需要） | https://nodejs.org/ → 下载 LTS Installer，勾选 Add to PATH | 用于 `package.json` 的 `task-*-debug` 三个状态栏脚本；缺失则回退只生成 `.vscode/tasks.json` 原生任务 |
-| clang / LLVM（仅作为备用交叉编译器，一般不必单独装） | 同 clangd 全套即可 | 主力仍用 arm-none-eabi-gcc；只有明确要求才用 clang + GNU binutils 组合 |
-
-### 验证已安装
-
-任一工具安装后，在 PowerShell 执行下列命令，全部能打印出版本/路径才算成功：
-
-```powershell
-Get-Command arm-none-eabi-gcc ; & (Get-Command arm-none-eabi-gcc).Source --version
-Get-Command arm-none-eabi-gdb ; & (Get-Command arm-none-eabi-gdb).Source --version
-Get-Command arm-none-eabi-objcopy ; & (Get-Command arm-none-eabi-objcopy).Source --version
-Get-Command cmake ; & (Get-Command cmake).Source --version
-Get-Command ninja ; & (Get-Command ninja).Source --version
-Get-Command openocd ; & (Get-Command openocd).Source --version
-Get-Command clangd          # 可选
-Get-Command npm             # 可选
-```
-
-执行完毕全部 OK → 重新运行本 skill → 会走「成功分支」并输出逐文件作用清单。
+工具缺失或不兼容时，读取 [windows-setup.md](windows-setup.md)。该文档集中维护无工具链、仅 Keil、部分缺失及未加入 PATH 时的安装方案、官方来源、验证与恢复步骤。先补齐工具并验证，再继续项目配置；不提供 Makefile 回退。

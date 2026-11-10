@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 #  刷新 CMakeLists.txt 中的源文件列表
 #  目的：每次点击「task-configure-debug」按钮时自动执行本脚本，
 #        将工程下新增的 .c / .s / .S / .cpp 加入 CMakeLists.txt
@@ -19,7 +19,9 @@
 #    - 支持用户在工程根放 .cmake-sources.ignore（行=相对路径）
 # ============================================================
 param(
-    [string]$Root = "."
+    # 默认工程根目录 = 本脚本所在 Tools/ 的上一级，
+    # 因此脚本放在 <project>/Tools/ 下、从任意当前目录调用都能正确定位工程。
+    [string]$Root = (Split-Path -Parent $PSScriptRoot)
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,8 +30,8 @@ $Root = (Resolve-Path $Root).Path
 $cmakeFile = Join-Path $Root "CMakeLists.txt"
 
 if (-not (Test-Path $cmakeFile)) {
-    Write-Host "[CMake SRCS] 未找到 CMakeLists.txt，跳过（Makefile 回退方案无需刷新）。"
-    exit 0
+    Write-Error "[CMake SRCS] 未找到 CMakeLists.txt。"
+    exit 1
 }
 
 # ---- 配置区：可按需扩展 ----
@@ -56,6 +58,7 @@ $EXCLUDE_DIRS = @(
     ".vscode",
     ".git",
     ".vs",
+    "Tools",
     "node_modules",
     "Debug",
     "Release"

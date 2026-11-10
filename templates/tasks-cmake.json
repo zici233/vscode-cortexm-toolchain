@@ -5,17 +5,19 @@
     {
       "label": "configure (cmake)",
       "type": "shell",
-      "command": "__CMAKE__",
+      "command": "powershell",
       "args": [
-        "--fresh",
-        "--preset", "debug"
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-Command",
+        "& '.\\Tools\\refresh-cmake-sources.ps1'; if ($LASTEXITCODE -eq 0) { & '__CMAKE__' --fresh --preset debug }"
       ],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": []
     },
     {
       "label": "build (cmake)",
-      "type": "shell",
+      "type": "process",
       "command": "__CMAKE__",
       "args": ["--build", "--preset", "debug"],
       "options": { "cwd": "${workspaceFolder}" },
@@ -25,13 +27,13 @@
     },
     {
       "label": "flash (openocd)",
-      "type": "shell",
+      "type": "process",
       "command": "__OPENOCD__",
       "args": [
         "-s", "__OPENOCD_SCRIPTS__",
         "-f", "__INTERFACE_CFG__",
         "-f", "__TARGET_CFG__",
-        "-c", "program __FIRMWARE__ verify reset exit"
+        "-c", "program \"__FIRMWARE__\" verify reset exit"
       ],
       "options": { "cwd": "${workspaceFolder}" },
       "dependsOn": ["build (cmake)"],

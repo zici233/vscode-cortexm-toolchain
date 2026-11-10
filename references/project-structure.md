@@ -1,16 +1,18 @@
 # 工程文件架构规范
 
-本文件定义 VSCode 工具链生成文件与编译产物的存放规范。**适用范围仅限「本 Skill 生成的文件」与「编译产物」**，保证 CMake / Makefile 两套方案输出一致、目录整洁。
+本文件定义 VSCode 工具链生成文件与编译产物的存放规范。**适用范围仅限「本 Skill 生成的文件」与「编译产物」**。
 
 ## 1. 核心原则（红线）
 
 1. **只生成 / 管理以下内容**：
    - `.vscode/` 下的 JSON 配置（`tasks.json` / `launch.json` / `c_cpp_properties.json` / `settings.json`）
-   - 根目录构建脚本（`CMakeLists.txt` 或 `Makefile`）与 `toolchain.cmake`、`CMakePresets.json`
+   - 根目录构建脚本 `CMakeLists.txt` 与 `toolchain.cmake`、`CMakePresets.json`
    - 任务按钮入口 `package.json`（可选）
+   - PowerShell 辅助脚本目录 `Tools/`（可选，需 npm）
    - 编译产物目录 `build/`
-2. **不移动、不重命名、不复制、不删除用户原有文件**：源码、启动文件、链接脚本、外设库等一律保持原位，仅在构建脚本中按实际路径引用。**例外**：编译调试相关配置文件（`.vscode/*.json`、`Makefile`、`CMakeLists.txt`、`CMakePresets.json`、`toolchain.cmake`、`package.json`、链接脚本 `*.ld` 等）如发现错误、缺项或不兼容，可修改 / 补齐，以确保能正确编译、调试、烧录。
+2. **不移动、不重命名、不复制、不删除用户原有文件**：源码、启动文件、链接脚本、外设库等一律保持原位，仅在构建脚本中按实际路径引用。**例外**：编译调试相关配置文件（`.vscode/*.json`、`CMakeLists.txt`、`CMakePresets.json`、`toolchain.cmake`、`package.json`、链接脚本 `*.ld` 等）如发现错误、缺项或不兼容，可修改 / 补齐，以确保能正确编译、调试、烧录。
 3. **构建产物统一进 `build/`**，不散落到源码目录。
+4. **辅助脚本统一进 `Tools/`**：使用本 skill 时在项目根目录新建该文件夹（已存在则复用，使用大写 `T`）；生成或复制到项目中的辅助脚本及临时验证脚本均放在此处，所有调用路径同步指向 `Tools/`。
 
 ## 2. 目录结构（区分「生成」与「原有」）
 
@@ -24,10 +26,13 @@
 │   ├── c_cpp_properties.json       #   IntelliSense 配置（compileCommands 路径动态判断）
 │   └── settings.json               #   Cortex-Debug 路径 + clangd.path（clangd.exe 绝对路径，探测/复用）
 ├── .clangd                         # ★ 生成：clangd 配置（CompilationDatabase 路径动态判断，不写死 build）
-├── CMakeLists.txt  或  Makefile    # ★ 生成：构建定义
-├── CMakePresets.json               # ★ 生成：仅 CMake 方案（构建预设）
-├── toolchain.cmake                 # ★ 生成：仅 CMake 方案
+├── CMakeLists.txt                  # ★ 生成：构建定义
+├── CMakePresets.json              # ★ 生成：构建预设
+├── toolchain.cmake                 # ★ 生成：交叉编译工具链
 ├── package.json                    # ★ 生成：任务按钮入口（可选）
+├── Tools/                          # ★ 生成：PowerShell 辅助脚本（可选，需 npm）
+│   ├── refresh-cmake-sources.ps1   #   配置前把新增/删除的源文件同步进 CMakeLists.txt
+│   └── build-and-flash.ps1         #   先构建，再用 OpenOCD 烧录并复位
 ├── build/                          # ★ 编译时自动生成：产物，不入库
 │
 │  —— 以下为用户原有文件，仅被引用，不移动 ——
@@ -49,7 +54,7 @@
   - 链接产物：`<target>.elf`、`<target>.map`
   - 烧录产物：`<target>.bin`、`<target>.hex`
 - **规则**：
-  - 由 Makefile / CMake 自动生成，`clean` 时整体删除。
+  - 由 CMake / Ninja 自动生成，清理时删除构建目录。
   - 加入 `.gitignore`，不纳入版本控制。
   - 烧录 / 调试统一指向 `build/<target>.elf`（bin/hex 视需要）。
 
@@ -57,22 +62,23 @@
 
 | 生成文件 | 位置 | 方案 |
 |----------|------|------|
-| `tasks.json` | `.vscode/` | 两者 |
-| `launch.json` | `.vscode/` | 两者 |
-| `c_cpp_properties.json` | `.vscode/` | 两者 |
-| `settings.json` | `.vscode/` | 两者 |
-| `.clangd` | 根目录 | 动态判断：任何方案只要工程下搜索到 `compile_commands.json` 就生成；Makefile 方案搜不到则不生成。`CompilationDatabase` 值来源于搜索命中或 `CMakePresets.binaryDir` 或 CMake 默认 `build`，绝不写死。 |
-| `linker/<chip>.ld`（用户无现成时生成） | `linker/` | 两者 |
-| `CMakeLists.txt` | 根目录 | CMake |
-| `CMakePresets.json` | 根目录 | CMake |
-| `toolchain.cmake` | 根目录 | CMake |
-| `package.json` | 根目录 | CMake（可选） |
-| `Makefile` | 根目录 | Makefile |
-| `build/`（编译时自动生成） | 根目录 | 两者 |
+| `tasks.json` | `.vscode/` | 必需 |
+| `launch.json` | `.vscode/` | 必需 |
+| `c_cpp_properties.json` | `.vscode/` | 必需 |
+| `settings.json` | `.vscode/` | 必需 |
+| `.clangd` | 根目录 | 检测到 clangd 且有编译数据库时生成；`CompilationDatabase` 值来源于 `CMakePresets.binaryDir` 或实际构建目录，绝不写死。 |
+| `linker/<chip>.ld`（用户无现成时生成） | `linker/` | 按需 |
+| `CMakeLists.txt` | 根目录 | 必需 |
+| `CMakePresets.json` | 根目录 | 必需 |
+| `toolchain.cmake` | 根目录 | 必需 |
+| `package.json` | 根目录 | 可选 |
+| `refresh-cmake-sources.ps1` | `Tools/` | 可选（需 npm） |
+| `build-and-flash.ps1` | `Tools/` | 可选（需 npm） |
+| `build/`（编译时自动生成） | 根目录 | 必需 |
 
 ## 5. 对用户原有文件的处理
 
-- **已有工程（CubeMX / SDK / 手写）**：不移动、不重命名、不复制、不删除任何源文件 / 启动文件 / 外设库。构建脚本中的源文件 / 头文件 / 链接脚本路径，直接指向工程当前的**实际路径**。编译调试相关配置文件（`.vscode/*.json`、`Makefile`、`CMakeLists.txt`、`toolchain.cmake`、`*.ld`）发现错误或缺项时，可修改 / 补齐。
+- **已有工程（CubeMX / SDK / 手写）**：不移动、不重命名、不复制、不删除任何源文件 / 启动文件 / 外设库。构建脚本中的源文件 / 头文件 / 链接脚本路径，直接指向工程当前的**实际路径**。编译调试相关配置文件（`.vscode/*.json`、`CMakeLists.txt`、`toolchain.cmake`、`*.ld`）发现错误或缺项时，可修改 / 补齐。
 - **全新空项目**：可按第 2 节示例结构**新建** `src/`、`inc/`、`startup/`、`linker/` 等目录并放置新文件（此时属新建，不涉及「动原文件」）。
 
 ## 6. .gitignore 建议

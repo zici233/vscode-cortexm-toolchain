@@ -11,7 +11,7 @@
 #    __LDSCRIPT__  -> 链接脚本路径，如 STM32F103C8Tx_FLASH.ld
 # ============================================================
 
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 
 project(__PROJECT__ C ASM)
 
@@ -41,12 +41,12 @@ target_compile_options(${TARGET} PRIVATE
 )
 
 # ---- 链接选项 ----
-set(LINKER_SCRIPT __LDSCRIPT__)
+set(LINKER_SCRIPT "__LDSCRIPT__")
 
 target_link_options(${TARGET} PRIVATE
-    -T${LINKER_SCRIPT}
+    "-T${LINKER_SCRIPT}"
     -Wl,--gc-sections
-    -Wl,-Map=${CMAKE_BINARY_DIR}/${TARGET}.map
+    "-Wl,-Map=${CMAKE_BINARY_DIR}/${TARGET}.map"
     -specs=nano.specs
     -specs=nosys.specs
 )
@@ -55,5 +55,6 @@ target_link_options(${TARGET} PRIVATE
 # 默认不在 CMake POST_BUILD 中生成 bin / hex：Windows 中文路径下经 cmd.exe 调用 objcopy 可能异常。
 # 调试 / 烧录主产物统一使用 elf；如需 bin / hex，建议改由 PowerShell 脚本单独转换。
 add_custom_command(TARGET ${TARGET} POST_BUILD
-    COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${TARGET}>
+    COMMAND "${CMAKE_SIZE}" "$<TARGET_FILE:${TARGET}>"
+    VERBATIM
 )
