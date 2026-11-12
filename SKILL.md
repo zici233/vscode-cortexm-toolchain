@@ -122,7 +122,20 @@ CMake 规则：`task-configure-debug` 先运行 `Tools/refresh-cmake-sources.ps1
 
 工具验证和必要项目信息检查通过前，不写项目配置。安装引导阶段可在既定工具目录安装软件、在项目 `Tools/` 中保存已授权的安装辅助脚本。配置后验证失败时保留诊断信息，修复后重试，不报告成功。
 
-### 6. 验证
+### 6. 清理残留文件
+
+配置完成后,删除所有配置过程中产生的临时文件:
+
+- **临时验证脚本**：`Tools/` 目录中仅用于工具探测和验证、以 `test-`、`verify-`、`check-` 等为前缀的 PowerShell 脚本,不包括最终生成的 `refresh-cmake-sources.ps1` 和 `build-and-flash.ps1`。
+- **临时日志文件**：工具探测过程中可能产生的 `.log`、`.tmp` 文件。
+- **备份文件**：配置修复时可能产生的 `.bak`、`.old` 后缀文件。
+
+清理规则:
+1. 仅删除本次配置产生的临时文件,不动用户原有文件。
+2. 保留所有最终配置文件(`.vscode/`、`CMakeLists.txt`、`toolchain.cmake`、`CMakePresets.json`、`package.json`、`.clangd` 及 `Tools/` 中的正式脚本)。
+3. 清理时明确列出删除的文件路径,让用户知晓。
+
+### 7. 验证
 
 给出与实际方案匹配的命令：
 
